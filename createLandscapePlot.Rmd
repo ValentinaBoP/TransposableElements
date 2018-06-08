@@ -1,0 +1,136 @@
+---
+title: "createLanscapePlot"
+author: "Valentina Peona"
+date: "08/06/2018"
+output: html_document
+---
+
+```{r, libraries, warning=FALSE, message=FALSE}
+# libraries required
+library(data.table)
+library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
+```
+
+```{r, input}
+# read RepeatMasker output file
+# in this example I use the Platypus because it's adorable
+
+# ornAna.fa.out downloaded from:
+# http://www.repeatmasker.org/species/ornAna.html
+
+DATA = fread(file = "ornAna1.fa.out", header = F, stringsAsFactors = F, skip = 3, fill = T)
+```
+
+```{r, process_input}
+DATA = DATA[,c(5,6,7,9,10,11,2,15)]
+names(DATA) = c("Scaffold", "Begin", "End", "Strand", "Element", "Family", "Divergence", "ID")
+
+# add length of the hits
+DATA$Length = DATA$End - DATA$Begin + 1
+
+# delete elements with divergence greater than 100 (there could be artefacts sometimes)
+DATA = DATA[DATA$Divergence < 100,]
+
+# re-order the column
+DATA = DATA[,c(1:6,9,7,8)]
+
+# replace "C" with "-" in the Strand column
+DATA$Strand = sub(pattern = "C", replacement = "-", x = DATA$Strand)
+```
+
+## LINE 2 elements
+
+```{r, L2_elements}
+# subset DNA TEs
+L2 = DATA[grepl(pattern = 'L2', x = DATA$Element),]
+
+# round the divergence values
+#DNA$Divergence = DNA$Divergence * 100
+L2$RoundDiv = floor(L2$Divergence)
+
+# create a factor with the name of the subfamily/element and the divergence associated to it
+# so we can get the number of bps associated to that particular subfamily at that particular divergence
+L2$Factor = paste(L2$Element, L2$RoundDiv, sep = "$")
+
+# general landscape - bps occupied
+L2_bps = aggregate(Length ~ Factor, L2, sum)
+L2_bps$Element = sapply(strsplit(L2_bps$Factor, "\\$"), "[[", 1)
+L2_bps$Divergence = sapply(strsplit(L2_bps$Factor, "\\$"), "[[", 2)
+
+# conversion in megabases
+L2_bps$Mb = L2_bps$Length / 1000000
+```
+
+```{r, L2_color_palette}
+# assign colors to the subfamilies
+coll2 = character()
+colfunc <- colorRampPalette(c("red3", "gold"))
+coll2 = c(coll2, colfunc(6))
+colfunc <- colorRampPalette(c("lightgreen", "darkgreen"))
+coll2 = c(coll2, colfunc(6))
+colfunc <- colorRampPalette(c("#6BAED6", "#08306B"))
+coll2 = c(coll2, colfunc(6))
+colfunc <- colorRampPalette(c("#BCBDDC", "#3F007D"))
+coll2 = c(coll2, colfunc(6))
+```
+
+```{r, L2_plot}
+# plot
+L2_plot = ggplot(data = L2_bps, aes(x = as.integer(Divergence), y = Mb, fill = factor(Element))) + geom_bar(stat = "identity") + scale_fill_manual(name = "L2 Subfamilies", values = as.character(coll2)) + theme_bw() + theme(panel.border = element_rect(colour = 'darkgrey', fill = NA)) + xlab("Divergence")
+
+L2_plot
+```
+
+```{r, save_L2_plot}
+# save the plot
+ggsave(filename = 'ornAna_L2_landscape.png', plot = L2_plot, device = "png", width = 50, height = 27, units = "cm", scale = .5)
+```
+
+## DNA elements
+```{r, DNA_elements}
+# subset DNA TEs
+DNA = DATA[grepl(pattern = 'DNA', x = DATA$Element),]
+
+# round the divergence values
+#DNA$Divergence = DNA$Divergence * 100
+DNA$RoundDiv = floor(DNA$Divergence)
+
+# create a factor with the name of the subfamily/element and the divergence associated to it
+# so we can get the number of bps associated to that particular subfamily at that particular divergence
+DNA$Factor = paste(DNA$Element, DNA$RoundDiv, sep = "$")
+
+# general landscape - bps occupied
+DNA_bps = aggregate(Length ~ Factor, DNA, sum)
+DNA_bps$Element = sapply(strsplit(DNA_bps$Factor, "\\$"), "[[", 1)
+DNA_bps$Divergence = sapply(strsplit(DNA_bps$Factor, "\\$"), "[[", 2)
+
+# conversion in megabases
+DNA_bps$Mb = DNA_bps$Length / 1000000
+```
+
+```{r, DNA_color_palette}
+# assign colors to the subfamilies
+coldna = character()
+colfunc <- colorRampPalette(c("red3", "gold"))
+coldna = c(coldna, colfunc(3))
+colfunc <- colorRampPalette(c("lightgreen", "darkgreen"))
+coldna = c(coldna, colfunc(3))
+colfunc <- colorRampPalette(c("#6BAED6", "#08306B"))
+coldna = c(coldna, colfunc(3))
+colfunc <- colorRampPalette(c("#BCBDDC", "#3F007D"))
+coldna = c(coldna, colfunc(2))
+```
+
+```{r, DNA_plot}
+# plot
+DNA_plot = ggplot(data = DNA_bps, aes(x = as.integer(Divergence), y = Mb, fill = factor(Element))) + geom_bar(stat = "identity") + scale_fill_manual(name = "DNA Subfamilies", values = as.character(coldna)) + theme_bw() + theme(panel.border = element_rect(colour = 'darkgrey', fill = NA)) + xlab("Divergence")
+
+DNA_plot
+```
+
+```{r, save_DNA_plot}
+# save the plot
+ggsave(filename = 'ornAna_DNA_landscape.png', plot = DNA_plot, device = "png", width = 50, height = 27, units = "cm", scale = .5)
+```
